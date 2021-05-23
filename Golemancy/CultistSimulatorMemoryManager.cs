@@ -29,7 +29,7 @@ namespace Golemancy {
 
 				if (
 					BitConverter.ToUInt32(region, c + 0) == 0x19355C58 // vtable
-				&&  BitConverter.ToUInt32(region, c + 4) == 0x00000000 // Unity alignment bytes
+				&&  BitConverter.ToUInt32(region, c + 4) == 0x00000000 // .NET locking
 				&&  BitConverter.ToUInt32(region, c + 8) != 0x00000000 // UnityEngine.Object.m_CachedPtr
 				) {
 					return start + (UInt32) c;
@@ -55,6 +55,21 @@ namespace Golemancy {
 			}
 
 			return result;
+		}
+		public static String ReadString ( Process process, UInt32 address ) {
+			UInt32 stringAddress = Read<UInt32>(process, address);
+			Int32 size = Read<Int32>(process, stringAddress + 0x8);
+			if ( size < 0 || size > 1000 )
+				return "INVALID STRING";
+			Byte[] read = new Byte[size*2];
+
+			ReadProcessMemory((IntPtr) process.Handle, (IntPtr) stringAddress + 0xC, read, size*2, out Int32 lpNumberOfBytesRead);
+
+			Int32 nullindex = 0;
+			while ( nullindex < lpNumberOfBytesRead && read[nullindex] != 0)
+				nullindex += 2;
+
+			return Encoding.Unicode.GetString(read, 0, nullindex);
 		}
 	}
 }
