@@ -57,6 +57,9 @@ namespace Golemancy {
                         UInt32 smc = CultistSimulatorMemoryManager.Read<UInt32>(process, esm + 0x10);
                         Console.WriteLine($"Found StackManagersCatalogue at {smc:X8}");
 
+                    UInt32 c = CultistSimulatorMemoryManager.Read<UInt32>(process, tttc + 0x1C);
+                    Console.WriteLine($"Found Choreographer at {c:X8}");
+
                 UInt32 adw = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x1C);
                 Console.WriteLine($"Found AspectDetailsWindow at {adw:X8}");
 
@@ -66,13 +69,17 @@ namespace Golemancy {
                 UInt32 mc = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x28);
                 Console.WriteLine($"Found MapController at {mc:X8}");
 
+                UInt32 mtc = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x2C);
+                Console.WriteLine($"Found MapTokenContainer at {mtc:X8}");
+
                 UInt32 sb = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x4C);
                 Console.WriteLine($"Found StatusBar at {sb:X8}");
 
                 Single hkt = CultistSimulatorMemoryManager.Read<Single>(process, ttm + 0x7C);
                 Console.WriteLine($"Found housekeepingTimer at {hkt}");
 
-
+            UInt32 sc = csmm.FindSituationsCatalogue(process);
+            Console.WriteLine($"Found SituationsCatalogue at {sc:X8}");
 
             Console.ReadLine();
 

@@ -12,6 +12,18 @@ namespace Golemancy {
 	    public static extern Boolean ReadProcessMemory( IntPtr hProcess, IntPtr lpBaseAddress, Byte[] lpBuffer, Int32 dwSize, out Int32 lpNumberOfBytesRead );
 	    [DllImport("kernel32.dll")]
 	    public static extern Boolean WriteProcessMemory( IntPtr hProcess, IntPtr lpBaseAddress, Byte[] lpBuffer, Int32 dwSize, out Int32 lpNumberOfBytesWritten );
+		[DllImport("kernel32.dll")]
+		public static extern Int32 VirtualQueryEx( IntPtr hProcess, IntPtr lpAddress, out MEMORY_BASIC_INFORMATION32 lpBuffer, UInt32 dwLength );
+		
+		public struct MEMORY_BASIC_INFORMATION32 {
+			public Int32 BaseAddress;
+			public Int32 AllocationBase;
+			public Int32 AllocationProtect;
+			public Int32 RegionSize;
+			public Int32 State;
+			public Int32 Protect;
+			public Int32 Type;
+		}
 
 		/**
 			Generic rant 1; Who in their right mind thought it would be a good idea to hide the complex yet beautiful C++ types with the mess that is IntPtr and its ramifications for 64-bit code that interacts with 32-bit code?
@@ -19,23 +31,52 @@ namespace Golemancy {
 		*/
 
 		public UInt32 FindTabletopManager ( Process process ) {
-			UInt32 start = 0x08CF0000;
-			UInt32 stop  = 0x09000000;
+			return FindPatternAddress(process, 0x0, 0x21000000, ( bytes, index ) => {
+				return
+				   index < bytes.Length - 8
+				&& BitConverter.ToUInt32(bytes, index + 0) == 0x19428DB8 // vtable
+				&& BitConverter.ToUInt32(bytes, index + 4) == 0x00000000 // .NET locking
+				&& BitConverter.ToUInt32(bytes, index + 8) != 0x00000000; // UnityEngine.Object.m_CachedPtr
+			});
+		}
 
-			Byte[] region = new Byte[stop-start];
-			ReadProcessMemory(process.Handle, (IntPtr) start, region, (Int32) (stop-start), out Int32 lpNumberOfBytesRead);
+		public UInt32 FindSituationsCatalogue ( Process process ) {
+			return FindPatternAddress(process, 0x0, 0x21000000, ( bytes, index ) => {
+				return
+				   index < bytes.Length - 8
+				&& BitConverter.ToUInt32(bytes, index + 0) == 0x192BF210 // vtable
+				&& BitConverter.ToUInt32(bytes, index + 4) == 0x00000000 // .NET locking
+				&& BitConverter.ToUInt32(bytes, index + 8) != 0x00000000; // _currentSituationControllers
+			});
+		}
 
-			for ( Int32 c = 0 ; c < stop-start-8 ; c += 4 ) {
+		public UInt32 FindPatternAddress ( Process process, Int32 start, Int32 stop, Func<Byte[], Int32, Boolean> pattern ) {
+			Console.WriteLine($"Scanning {start:X8}-{stop:X8}");
+			Int32 currentAddress = start;
+			while ( currentAddress < stop ) {
+				if ( VirtualQueryEx(process.Handle, (IntPtr) currentAddress, out MEMORY_BASIC_INFORMATION32 memoryRegion, (UInt32) Marshal.SizeOf(typeof(MEMORY_BASIC_INFORMATION32))) > 0
+					&& memoryRegion.RegionSize > 0
+					&& memoryRegion.State == 0x1000 // MEM_COMMIT
+					) {
 
-				if (
-					BitConverter.ToUInt32(region, c + 0) == 0x19355C58 // vtable
-				&&  BitConverter.ToUInt32(region, c + 4) == 0x00000000 // .NET locking
-				&&  BitConverter.ToUInt32(region, c + 8) != 0x00000000 // UnityEngine.Object.m_CachedPtr
-				) {
-					return start + (UInt32) c;
+					Int32 regionStartAddress = memoryRegion.BaseAddress;
+					if ( start > regionStartAddress )
+						regionStartAddress = start;
+
+					Int32 regionEndAddress = memoryRegion.BaseAddress + memoryRegion.RegionSize;
+					if ( stop < regionEndAddress )
+						regionEndAddress = stop;
+
+					Byte[] regionBytes = new Byte[regionEndAddress - regionStartAddress];
+					ReadProcessMemory(process.Handle, (IntPtr) regionStartAddress, regionBytes, regionBytes.Length, out Int32 lpNumberOfBytesRead);
+
+					for ( Int32 testIndex = 0 ; testIndex < regionBytes.Length ; testIndex += 4 ) {
+						if ( pattern.Invoke(regionBytes, testIndex) )
+							return (UInt32) (regionStartAddress + testIndex);
+					}
 				}
+				currentAddress = memoryRegion.BaseAddress + memoryRegion.RegionSize;
 			}
-
 			return 0;
 		}
 
