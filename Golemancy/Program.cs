@@ -25,61 +25,134 @@ namespace Golemancy {
             IntPtr processHandle = process.Handle;
             Console.WriteLine("Process Handle: " + processHandle);
 
-            CultistSimulatorMemoryManager csmm = new CultistSimulatorMemoryManager();
-            UInt32 ttm = csmm.FindTabletopManager(process);
-            Console.WriteLine($"Found TabletopManager at {ttm:X8}");
+            CultistSimulatorController csc = new CultistSimulatorController(process);
 
-                UInt32 tttc = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x10);
-                Console.WriteLine($"Found TabletopTokenContainer at {tttc:X8}");
+            Console.ReadLine();
 
-                    UInt32 esm = CultistSimulatorMemoryManager.Read<UInt32>(process, tttc + 0xC);
-                    Console.WriteLine($"Found ElementStacksManager at {esm:X8}");
+            Int32 TabletopManager = csc.FindTabletopManager();
+            Console.WriteLine($"Found TabletopManager at {TabletopManager:X8}");
+                Int32 tttc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x10);
+                    Int32 esm = MemoryManager32.Read<Int32>(process, tttc + 0xC);
+                        Int32 tc = MemoryManager32.Read<Int32>(process, esm + 0x8);
+                        Int32 stacks = MemoryManager32.Read<Int32>(process, esm + 0xC);
+                            {
+                                Int32 array = MemoryManager32.Read<Int32>(process, stacks + 0x8);
+                                Int32 count = MemoryManager32.Read<Int32>(process, stacks + 0xC);
+                                Int32 capacity = MemoryManager32.Read<Int32>(process, stacks + 0x10);
 
-                        UInt32 tc = CultistSimulatorMemoryManager.Read<UInt32>(process, esm + 0x8);
-                        Console.WriteLine($"Found TokenContainer at {tc:X8}");
-                        
-                        UInt32 stacks = CultistSimulatorMemoryManager.Read<UInt32>(process, esm + 0xC);
-                        Console.WriteLine($"Found List<ElementStackToken> at {stacks:X8}");
-                            UInt32 array = CultistSimulatorMemoryManager.Read<UInt32>(process, stacks + 0x8);
-                            UInt32 count = CultistSimulatorMemoryManager.Read<UInt32>(process, stacks + 0xC);
-                            UInt32 capacity = CultistSimulatorMemoryManager.Read<UInt32>(process, stacks + 0x10);
-                            Console.WriteLine($"Supporting array ({count}/{capacity}) at {array:X8}");
+                                for ( Int32 i = 0 ; i < count ; ++i ) {
+                                    Int32 elementi = MemoryManager32.Read<Int32>(process, array + 0x10 + i * 0x4);
 
-                            for ( UInt32 i = 0 ; i < count ; ++i ) {
-                                UInt32 elementi = CultistSimulatorMemoryManager.Read<UInt32>(process, array + 0x10 + i * 0x4);
-
-                                UInt32 element = CultistSimulatorMemoryManager.Read<UInt32>(process, elementi + 0xB0);
-                                    String elementID = CultistSimulatorMemoryManager.ReadString(process, element + 0x8);
-                                    String elementLabel = CultistSimulatorMemoryManager.ReadString(process, element + 0x1C);
-                                Int32 quantity = CultistSimulatorMemoryManager.Read<Int32>(process, elementi + 0xE4);
-                                Console.WriteLine($"- {quantity}x \"{elementLabel}\" ({elementID})");
+                                    Int32 element = MemoryManager32.Read<Int32>(process, elementi + 0xB0);
+                                        String elementID = MemoryManager32.ReadString(process, element + 0x8);
+                                        String elementLabel = MemoryManager32.ReadString(process, element + 0x1C);
+                                    Int32 quantity = MemoryManager32.Read<Int32>(process, elementi + 0xE4);
+                                    Console.WriteLine($"- {quantity}x \"{elementLabel}\" ({elementID})");
+                                    if (elementID == "funds") Console.WriteLine($"{elementi + 0xE4:X8}");
+                                }
                             }
-                        UInt32 smc = CultistSimulatorMemoryManager.Read<UInt32>(process, esm + 0x10);
-                        Console.WriteLine($"Found StackManagersCatalogue at {smc:X8}");
+                        Int32 smc = MemoryManager32.Read<Int32>(process, esm + 0x10);
+                    Int32 c = MemoryManager32.Read<Int32>(process, tttc + 0x1C);
 
-                    UInt32 c = CultistSimulatorMemoryManager.Read<UInt32>(process, tttc + 0x1C);
-                    Console.WriteLine($"Found Choreographer at {c:X8}");
+                Int32 adw = MemoryManager32.Read<Int32>(process, TabletopManager + 0x1C);
+                Int32 tdw = MemoryManager32.Read<Int32>(process, TabletopManager + 0x20);
+                Int32 mc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x28);
+                Int32 mtc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x2C);
+                Int32 sb = MemoryManager32.Read<Int32>(process, TabletopManager + 0x4C);
+                Single hkt = MemoryManager32.Read<Single>(process, TabletopManager + 0x7C);
 
-                UInt32 adw = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x1C);
-                Console.WriteLine($"Found AspectDetailsWindow at {adw:X8}");
-
-                UInt32 tdw = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x20);
-                Console.WriteLine($"Found TokenDetailsWindow at {tdw:X8}");
-
-                UInt32 mc = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x28);
-                Console.WriteLine($"Found MapController at {mc:X8}");
-
-                UInt32 mtc = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x2C);
-                Console.WriteLine($"Found MapTokenContainer at {mtc:X8}");
-
-                UInt32 sb = CultistSimulatorMemoryManager.Read<UInt32>(process, ttm + 0x4C);
-                Console.WriteLine($"Found StatusBar at {sb:X8}");
-
-                Single hkt = CultistSimulatorMemoryManager.Read<Single>(process, ttm + 0x7C);
-                Console.WriteLine($"Found housekeepingTimer at {hkt}");
-
-            UInt32 sc = csmm.FindSituationsCatalogue(process);
+            Int32 sc = csc.FindSituationsCatalogue();
             Console.WriteLine($"Found SituationsCatalogue at {sc:X8}");
+                Int32 SituationControllerList = MemoryManager32.Read<Int32>(process, sc + 0x8);
+                    {
+                        Int32 array = MemoryManager32.Read<Int32>(process, SituationControllerList + 0x8);
+                        Int32 count = MemoryManager32.Read<Int32>(process, SituationControllerList + 0xC);
+                        Int32 capacity = MemoryManager32.Read<Int32>(process, SituationControllerList + 0x10);
+
+                        for ( Int32 i = 0 ; i < count ; ++i ) {
+                            Int32 situationController = MemoryManager32.Read<Int32>(process, array + 0x10 + i * 0x4);
+                                Int32 situationToken = MemoryManager32.Read<Int32>(process, situationController + 0x8);
+                                    Int32 verb = MemoryManager32.Read<Int32>(process, situationToken + 0xB8);
+                                        String verbID = MemoryManager32.ReadString(process, verb + 0x8);
+                                        String verbLabel = MemoryManager32.ReadString(process, verb + 0x1C);
+                                        Console.WriteLine($"- \"{verbLabel}\" ({verbID})");
+                        }
+                    }
+
+            // work legacybytjob => legacybytjobmatured, 3 funds, explore {some action => locationauctionhouse, locationcabaret}
+            // work legacybytjobmatured => [(legacybytjobmatured, 3 funds), (2 funds, legacyeventbad)]
+            // work health => fatigue, vitality, funds
+            // legacyeventbad => 2 health, 20 funds, study {some action => legacydiarylastcharacter, vienneseconundra, dream {some action => passion, influencewinter} }
+            // time, funds
+            
+            // dream passion => passionexhausted, contentment
+            // dream injury, funds => health
+            // dream ascensionsentationa, fragmentgrail => fragmentgrail, ascensionsensationbf
+            // dream affliction, funds => health, heartinduction
+
+            // heartinduction => vitality
+            // mothinduction => restlessness
+
+            // explore fleeting => fascination
+
+            // study 2x vitality => health, skillhealtha
+            // study textbooklatin => scholarlatin
+            // study scholarlatin, orchidtransfigurations2latin => scholarlatin, orchidtransfigurations2
+            // study vienneseconundra => fragmentmothc, glimmering
+            // study orchidtransfigurations2 => fragmentgrailb
+            // study textbookreason => eruditionplus
+            // study legacydiarylastcharacter => reason, fragmentgrail
+            // study textbookgreek => scholargreek
+            // study locksmithsdream2 => fragmentknock, erudition
+            // study scholarlatin, dehoris1latin => scholarlatin, dehoris1
+            // study skeletonsongs => fragmentgrail
+            // study erudition, erudition => skillreasona, reason
+            // study fragmentgrail, fragmentgrail
+
+            // ? => talk, poppyready, ascensionsensationa
+            
+            // poppytime => DEATH
+
+            // influencewinter DECAYEDTO dread
+            // restlessness DECAYEDTO dread
+            
+            // explore health => [({option to hire}, fatigue), (locationbookdealer, fatigue)]
+            
+            // work skillhealtha, health => skillhealtha, injury, funds
+            // work passion => passionexhausted, glimmering
+            // work reason => reason, gloverandgloverjuniorjob
+            // work gloverandgloverjuniorjob => gloverandgloverjuniorjob, funds
+            // work gloverandgloverjuniorjob, reason => gloverandglover_difficultbossa_job, concentration, funds
+            // work gloverandglover_difficultbossa_job, reason => gloverandglover_difficultbossa_job, concentration, 2 funds
+
+            // talk poppyready, passion => passion, 10 funds, compensationc, poppytime, mothinduction
+
+            // suspicion => contentment
+            // visions => fleeting
+            // despair => fleeting
+            // craving => restlessness
+            // rose => contentment
+            // illhealth health => affliction
+
+            /** explore locationauctionhouse => [
+                textbookreason
+                waroftheroadcensored
+                orchidtransfigurations2latin
+                textbooklatin
+                apolloandmarsyas
+                introductiontohistories
+                truecompleteasclepiangreek
+                locksmithsdream2
+                textbookgreek
+                dehoris1latin
+                skeletonsongs
+                humoursofagentleman
+                orchidtransfigurations1latin
+                stumm
+                travellingatnight2
+                sixlettersonnecessity
+                onthewhite
+            ]*/
 
             Console.ReadLine();
 

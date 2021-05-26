@@ -49,7 +49,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CultistSimulatorMemoryManager.cs" />
+    <Compile Include="CultistSimulatorController.cs" />
+    <Compile Include="MemoryManager32.cs" />
+    <Compile Include="MonoManager32.cs" />
     <Compile Include="Overlay.cs">
       <SubType>Form</SubType>
     </Compile>
