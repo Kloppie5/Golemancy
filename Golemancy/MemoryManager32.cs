@@ -199,17 +199,20 @@ namespace Golemancy {
 
 			return result;
 		}
-		public static String ReadNullTerminatedString ( Process process, Int32 address ) {
-			Int32 stringAddress = Read<Int32>(process, address);
+		public static String ReadNTString ( Process process, Int32 address ) {
 			Byte[] read = new Byte[200];
 
-			ReadProcessMemory((IntPtr) process.Handle, (IntPtr) stringAddress, read, 200, out Int32 lpNumberOfBytesRead);
+			ReadProcessMemory((IntPtr) process.Handle, (IntPtr) address, read, 200, out Int32 lpNumberOfBytesRead);
 
 			Int32 nullindex = 0;
 			while ( nullindex < lpNumberOfBytesRead && read[nullindex] != 0)
 				nullindex += 1;
 
 			return Encoding.UTF8.GetString(read, 0, nullindex);
+		}
+		public static String ReadNTStringAt ( Process process, Int32 address ) {
+			Int32 stringAddress = Read<Int32>(process, address);
+			return ReadNTString(process, stringAddress);
 		}
 		public static String ReadString ( Process process, Int32 address ) {
 			Int32 stringAddress = Read<Int32>(process, address);
