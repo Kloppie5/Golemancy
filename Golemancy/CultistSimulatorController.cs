@@ -35,7 +35,7 @@ namespace Golemancy {
 				if ( name != "Assembly-CSharp" )
 					continue;
 				Console.WriteLine($"Found Assembly \"{name}\" at {DATA:X8} <{PREV:X8}|{NEXT:X8}>");
-
+				Console.WriteLine($"With MonoImage at {MonoImage:X8}");
 				String fileName = ReadNTStringAt(MonoImage + 0x14);
 				String assemblyName = ReadNTStringAt(MonoImage + 0x18);
 				String moduleName = ReadNTStringAt(MonoImage + 0x1C);
@@ -68,6 +68,8 @@ namespace Golemancy {
 				// Cols {FLAGS, NAME, NAMESPACE, EXTENDS, FIELD_LIST, METHOD_LIST}
 
 				Console.WriteLine($"Analysing {rowCount}x{colCount} table at {TYPE_DEF_base:X8};");
+
+				Int32 TabletopManagerRow = -1;
 				for ( Int32 i = 0 ; i < rowCount ; ++i ) {
 					Int32 pointer = TYPE_DEF_base + i * rowSize;
 					Int32[] row = new Int32[colCount];
@@ -82,15 +84,42 @@ namespace Golemancy {
 						pointer += n;
 					}
 					String className = ReadNTString(HeapString + row[1]);
-					Console.WriteLine($"Class name \"{className}\" at {HeapString + row[1]:X8}");
+					if ( className == "TabletopManager" )
+						TabletopManagerRow = i;
+					Console.WriteLine($"Class {i}; name \"{className}\" at {HeapString + row[1]:X8}");
+
+					// RuntimeInformation-> domain_vtables [root_domain->domain_id]
 				}
 				
 				Int32 assembly = Read<Int32>(MonoImage + 0x34C);
+				Console.WriteLine($"Assembly link {assembly:X8}");
+				Int32 class_cache_hash_func = Read<Int32>(MonoImage + 0x354); // hash function doesnt change anything
+				Int32 class_cache_key_extract = Read<Int32>(MonoImage + 0x358); // reads +0x34
+				Int32 class_cache_next_value = Read<Int32>(MonoImage + 0x35C); // adds 0xA8
+				Int32 class_cache_size = Read<Int32>(MonoImage + 0x360);
+				Int32 class_cache_num_entries = Read<Int32>(MonoImage + 0x364);
+				Int32 class_cache_table = Read<Int32>(MonoImage + 0x368);
+				Console.WriteLine($"class_cache at {class_cache_table:X8}");
+
+				Int32 TabletopManagerIndex = TabletopManagerRow + 1;
+				Int32 TabletopManagerTypeToken = 0x02000000 | TabletopManagerIndex;
+				Int32 MonoClassPointer = Read<Int32>(class_cache_table + (TabletopManagerTypeToken % class_cache_size) * 4);
+				while ( MonoClassPointer != 0 ) {
+					if ( Read<Int32>(Read<Int32>(MonoClassPointer) + 0x34) == TabletopManagerTypeToken )
+						break;
+					MonoClassPointer = Read<Int32>(MonoClassPointer + 0xA8);
+					Console.WriteLine($"New pointer {MonoClassPointer:X8}");
+				}
+				Int32 MonoClass = Read<Int32>(MonoClassPointer);
+				String classname = ReadNTStringAt(MonoClass + 0x2C);
+				String classnamespace = ReadNTStringAt(MonoClass + 0x30);
+				Int32 ClassType = Read<Int32>(MonoClass + 0x34);
+				Console.WriteLine($"Class {classnamespace} . {classname} ({TabletopManagerTypeToken:X8} = {ClassType:X8}) at {MonoClass:X8}");
 			}
 
-			Int32 nameAddress = FindBytePattern(_process, 0, 0x21000000, new Byte?[] { 0x41, 0x73, 0x73, 0x65, 0x74, 0x73, 0x2E, 0x43, 0x53, 0x2E, 0x54, 0x61, 0x62, 0x6C, 0x65, 0x74, 0x6F, 0x70, 0x55, 0x49, 0x00 }).First();
-			Console.WriteLine($"Found name at {nameAddress:X8}");
-			Int32 namespaceAddress;
+			//Int32 nameAddress = FindBytePattern(_process, 0, 0x21000000, new Byte?[] { 0x41, 0x73, 0x73, 0x65, 0x74, 0x73, 0x2E, 0x43, 0x53, 0x2E, 0x54, 0x61, 0x62, 0x6C, 0x65, 0x74, 0x6F, 0x70, 0x55, 0x49, 0x00 }).First();
+			//Console.WriteLine($"Found name at {nameAddress:X8}");
+			//Int32 namespaceAddress;
 
 
 

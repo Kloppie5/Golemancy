@@ -30,6 +30,9 @@ namespace Golemancy {
             Console.ReadLine();
 
             Int32 TabletopManager = csc.FindTabletopManager();
+
+            Console.ReadLine();
+
             Console.WriteLine($"Found TabletopManager at {TabletopManager:X8}");
                 Int32 tttc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x10);
                     Int32 esm = MemoryManager32.Read<Int32>(process, tttc + 0xC);
