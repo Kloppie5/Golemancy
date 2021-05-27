@@ -7,17 +7,16 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace Golemancy {
-	class CultistSimulatorController : MemoryManager32 {
-		Process _process;
-		public CultistSimulatorController ( Process process ) {
-			_process = process;
+	class CultistSimulatorController : MonoManager32 {
+		public CultistSimulatorController ( Process process ) : base(process) {
+
 		}
 
 		public Int32 FindTabletopManager ( ) {
-			Int32 monoBase = (Int32) GetModuleBaseAddress(_process, "mono-2.0-bdwgc.dll");
+			Int32 monoBase = (Int32) GetModuleBaseAddress("mono-2.0-bdwgc.dll");
 
 			Int32 root_domain = Read<Int32>(monoBase + 0x3A41AC);
-			String friendly_name = ReadNTStringAt(root_domain + 0x74);
+			String friendly_name = ReadUTF8StringAt(root_domain + 0x74);
 			Console.WriteLine($"Domain \"{friendly_name}\" at {root_domain:X8}");
 
 			Int32 TabletopManagerMonoClassAddress = -1;
@@ -31,18 +30,18 @@ namespace Golemancy {
 				NEXT = Read<Int32>(CURR + 0x4);
 				PREV = Read<Int32>(CURR + 0x8);
 				Int32 refcount = Read<Int32>(DATA);
-				String baseDir = ReadNTStringAt(DATA + 0x4);
-				String name = ReadNTStringAt(DATA + 0x8);
+				String baseDir = ReadUTF8StringAt(DATA + 0x4);
+				String name = ReadUTF8StringAt(DATA + 0x8);
 				Int32 MonoImage = Read<Int32>(DATA + 0x44);
 				if ( name != "Assembly-CSharp" )
 					continue;
 				Console.WriteLine($"Found Assembly \"{name}\" at {DATA:X8} <{PREV:X8}|{NEXT:X8}>");
 				Console.WriteLine($"With MonoImage at {MonoImage:X8}");
-				String fileName = ReadNTStringAt(MonoImage + 0x14);
-				String assemblyName = ReadNTStringAt(MonoImage + 0x18);
-				String moduleName = ReadNTStringAt(MonoImage + 0x1C);
-				String version = ReadNTStringAt(MonoImage + 0x20);
-				String guid = ReadNTStringAt(MonoImage + 0x28);
+				String fileName = ReadUTF8StringAt(MonoImage + 0x14);
+				String assemblyName = ReadUTF8StringAt(MonoImage + 0x18);
+				String moduleName = ReadUTF8StringAt(MonoImage + 0x1C);
+				String version = ReadUTF8StringAt(MonoImage + 0x20);
+				String guid = ReadUTF8StringAt(MonoImage + 0x28);
 				Int32 MonoCLIImageInfo = Read<Int32>(MonoImage + 0x2C);
 				Int32 MonoMemPool = Read<Int32>(MonoImage + 0x30);
 				Int32 HeapString = Read<Int32>(MonoImage + 0x38);
@@ -85,7 +84,7 @@ namespace Golemancy {
 						}
 						pointer += n;
 					}
-					String className = ReadNTString(HeapString + row[1]);
+					String className = ReadUTF8String(HeapString + row[1]);
 					if ( className == "TabletopManager" )
 						TabletopManagerRow = i;
 					Console.WriteLine($"Class {i}; name \"{className}\" at {HeapString + row[1]:X8}");
@@ -113,8 +112,8 @@ namespace Golemancy {
 					Console.WriteLine($"New pointer {MonoClassPointer:X8}");
 				}
 				Int32 MonoClass = Read<Int32>(MonoClassPointer);
-				String classname = ReadNTStringAt(MonoClass + 0x2C);
-				String classnamespace = ReadNTStringAt(MonoClass + 0x30);
+				String classname = ReadUTF8StringAt(MonoClass + 0x2C);
+				String classnamespace = ReadUTF8StringAt(MonoClass + 0x30);
 				Int32 ClassType = Read<Int32>(MonoClass + 0x34);
 				Console.WriteLine($"Class {classnamespace} . {classname} ({TabletopManagerTypeToken:X8} = {ClassType:X8}) at {MonoClass:X8}");
 				TabletopManagerMonoClassAddress = MonoClass;
@@ -137,9 +136,9 @@ namespace Golemancy {
 
 			Console.WriteLine($"Looking for {TabletopManagerMonoVTablePattern}");
 
-			Int32 MonoVTableAddress = FindBytePattern(_process, 0, 0x21000000, TabletopManagerMonoVTablePattern).First();
+			Int32 MonoVTableAddress = FindBytePattern(0, 0x21000000, TabletopManagerMonoVTablePattern).First();
 			Int32 MonoClassCheck = Read<Int32>(MonoVTableAddress);
-			String ClassNameCheck = ReadNTStringAt(MonoClassCheck + 0x2C);
+			String ClassNameCheck = ReadUTF8StringAt(MonoClassCheck + 0x2C);
 			Console.WriteLine($"Found VTable for class {ClassNameCheck} at {MonoVTableAddress:X8}");
 			//Int32 namespaceAddress;
 
@@ -150,19 +149,6 @@ namespace Golemancy {
 
 		public Int32 FindSituationsCatalogue ( ) {
 			return 0;
-		}
-
-		public T Read<T> ( Int32 address ) where T : struct {
-			return Read<T>(_process, address);
-		}
-		public String ReadNTString ( Int32 address ) {
-			return ReadNTString(_process, address);
-		}
-		public String ReadNTStringAt ( Int32 address ) {
-			return ReadNTStringAt(_process, address);
-		}
-		public String ReadString ( Int32 address ) {
-			return ReadString(_process, address);
 		}
 	}
 }

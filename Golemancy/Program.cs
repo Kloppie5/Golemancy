@@ -25,59 +25,59 @@ namespace Golemancy {
             IntPtr processHandle = process.Handle;
             Console.WriteLine("Process Handle: " + processHandle);
 
-            CultistSimulatorController csc = new CultistSimulatorController(process);
+            CultistSimulatorController CSC = new CultistSimulatorController(process);
 
             Console.ReadLine();
 
-            Int32 TabletopManager = csc.FindTabletopManager();
+            Int32 TabletopManager = CSC.FindTabletopManager();
 
             Console.ReadLine();
 
             Console.WriteLine($"Found TabletopManager at {TabletopManager:X8}");
-                Int32 tttc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x10);
-                    Int32 esm = MemoryManager32.Read<Int32>(process, tttc + 0xC);
-                        Int32 tc = MemoryManager32.Read<Int32>(process, esm + 0x8);
-                        Int32 stacks = MemoryManager32.Read<Int32>(process, esm + 0xC);
+                Int32 tttc = CSC.Read<Int32>(TabletopManager + 0x10);
+                    Int32 esm = CSC.Read<Int32>(tttc + 0xC);
+                        Int32 tc = CSC.Read<Int32>(esm + 0x8);
+                        Int32 stacks = CSC.Read<Int32>(esm + 0xC);
                             {
-                                Int32 array = MemoryManager32.Read<Int32>(process, stacks + 0x8);
-                                Int32 count = MemoryManager32.Read<Int32>(process, stacks + 0xC);
-                                Int32 capacity = MemoryManager32.Read<Int32>(process, stacks + 0x10);
+                                Int32 array = CSC.Read<Int32>(stacks + 0x8);
+                                Int32 count = CSC.Read<Int32>(stacks + 0xC);
+                                Int32 capacity = CSC.Read<Int32>(stacks + 0x10);
 
                                 for ( Int32 i = 0 ; i < count ; ++i ) {
-                                    Int32 elementi = MemoryManager32.Read<Int32>(process, array + 0x10 + i * 0x4);
+                                    Int32 elementi = CSC.Read<Int32>(array + 0x10 + i * 0x4);
 
-                                    Int32 element = MemoryManager32.Read<Int32>(process, elementi + 0xB0);
-                                        String elementID = MemoryManager32.ReadString(process, element + 0x8);
-                                        String elementLabel = MemoryManager32.ReadString(process, element + 0x1C);
-                                    Int32 quantity = MemoryManager32.Read<Int32>(process, elementi + 0xE4);
+                                    Int32 element = CSC.Read<Int32>(elementi + 0xB0);
+                                        String elementID = CSC.ReadUnicodeStringAt(element + 0x8);
+                                        String elementLabel = CSC.ReadUnicodeStringAt(element + 0x1C);
+                                    Int32 quantity = CSC.Read<Int32>(elementi + 0xE4);
                                     Console.WriteLine($"- {quantity}x \"{elementLabel}\" ({elementID})");
                                     if (elementID == "funds") Console.WriteLine($"{elementi + 0xE4:X8}");
                                 }
                             }
-                        Int32 smc = MemoryManager32.Read<Int32>(process, esm + 0x10);
-                    Int32 c = MemoryManager32.Read<Int32>(process, tttc + 0x1C);
+                        Int32 smc = CSC.Read<Int32>(esm + 0x10);
+                    Int32 c = CSC.Read<Int32>(tttc + 0x1C);
 
-                Int32 adw = MemoryManager32.Read<Int32>(process, TabletopManager + 0x1C);
-                Int32 tdw = MemoryManager32.Read<Int32>(process, TabletopManager + 0x20);
-                Int32 mc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x28);
-                Int32 mtc = MemoryManager32.Read<Int32>(process, TabletopManager + 0x2C);
-                Int32 sb = MemoryManager32.Read<Int32>(process, TabletopManager + 0x4C);
-                Single hkt = MemoryManager32.Read<Single>(process, TabletopManager + 0x7C);
+                Int32 adw = CSC.Read<Int32>(TabletopManager + 0x1C);
+                Int32 tdw = CSC.Read<Int32>(TabletopManager + 0x20);
+                Int32 mc = CSC.Read<Int32>(TabletopManager + 0x28);
+                Int32 mtc = CSC.Read<Int32>(TabletopManager + 0x2C);
+                Int32 sb = CSC.Read<Int32>(TabletopManager + 0x4C);
+                Single hkt = CSC.Read<Single>(TabletopManager + 0x7C);
 
-            Int32 sc = csc.FindSituationsCatalogue();
+            Int32 sc = CSC.FindSituationsCatalogue();
             Console.WriteLine($"Found SituationsCatalogue at {sc:X8}");
-                Int32 SituationControllerList = MemoryManager32.Read<Int32>(process, sc + 0x8);
+                Int32 SituationControllerList = CSC.Read<Int32>(sc + 0x8);
                     {
-                        Int32 array = MemoryManager32.Read<Int32>(process, SituationControllerList + 0x8);
-                        Int32 count = MemoryManager32.Read<Int32>(process, SituationControllerList + 0xC);
-                        Int32 capacity = MemoryManager32.Read<Int32>(process, SituationControllerList + 0x10);
+                        Int32 array = CSC.Read<Int32>(SituationControllerList + 0x8);
+                        Int32 count = CSC.Read<Int32>(SituationControllerList + 0xC);
+                        Int32 capacity = CSC.Read<Int32>(SituationControllerList + 0x10);
 
                         for ( Int32 i = 0 ; i < count ; ++i ) {
-                            Int32 situationController = MemoryManager32.Read<Int32>(process, array + 0x10 + i * 0x4);
-                                Int32 situationToken = MemoryManager32.Read<Int32>(process, situationController + 0x8);
-                                    Int32 verb = MemoryManager32.Read<Int32>(process, situationToken + 0xB8);
-                                        String verbID = MemoryManager32.ReadString(process, verb + 0x8);
-                                        String verbLabel = MemoryManager32.ReadString(process, verb + 0x1C);
+                            Int32 situationController = CSC.Read<Int32>(array + 0x10 + i * 0x4);
+                                Int32 situationToken = CSC.Read<Int32>(situationController + 0x8);
+                                    Int32 verb = CSC.Read<Int32>(situationToken + 0xB8);
+                                        String verbID = CSC.ReadUnicodeStringAt(verb + 0x8);
+                                        String verbLabel = CSC.ReadUnicodeStringAt(verb + 0x1C);
                                         Console.WriteLine($"- \"{verbLabel}\" ({verbID})");
                         }
                     }
