@@ -20,6 +20,8 @@ namespace Golemancy {
 			String friendly_name = ReadNTStringAt(root_domain + 0x74);
 			Console.WriteLine($"Domain \"{friendly_name}\" at {root_domain:X8}");
 
+			Int32 TabletopManagerMonoClassAddress = -1;
+
 			Int32 ASSEMBLIES_DLL = Read<Int32>(root_domain + 0x6C);
 			Int32 DATA;
 			Int32 NEXT = -1;
@@ -115,10 +117,30 @@ namespace Golemancy {
 				String classnamespace = ReadNTStringAt(MonoClass + 0x30);
 				Int32 ClassType = Read<Int32>(MonoClass + 0x34);
 				Console.WriteLine($"Class {classnamespace} . {classname} ({TabletopManagerTypeToken:X8} = {ClassType:X8}) at {MonoClass:X8}");
+				TabletopManagerMonoClassAddress = MonoClass;
 			}
 
-			//Int32 nameAddress = FindBytePattern(_process, 0, 0x21000000, new Byte?[] { 0x41, 0x73, 0x73, 0x65, 0x74, 0x73, 0x2E, 0x43, 0x53, 0x2E, 0x54, 0x61, 0x62, 0x6C, 0x65, 0x74, 0x6F, 0x70, 0x55, 0x49, 0x00 }).First();
-			//Console.WriteLine($"Found name at {nameAddress:X8}");
+			Byte?[] TabletopManagerMonoVTablePattern = new Byte?[] {
+				(Byte) TabletopManagerMonoClassAddress,
+				(Byte) (TabletopManagerMonoClassAddress >> 8),
+				(Byte) (TabletopManagerMonoClassAddress >> 16),
+				(Byte) (TabletopManagerMonoClassAddress >> 24),
+				0xF9,
+				0xFF,
+				0xFF,
+				0x1F,
+				(Byte) root_domain,
+				(Byte) (root_domain >> 8),
+				(Byte) (root_domain >> 16),
+				(Byte) (root_domain >> 24)
+			};
+
+			Console.WriteLine($"Looking for {TabletopManagerMonoVTablePattern}");
+
+			Int32 MonoVTableAddress = FindBytePattern(_process, 0, 0x21000000, TabletopManagerMonoVTablePattern).First();
+			Int32 MonoClassCheck = Read<Int32>(MonoVTableAddress);
+			String ClassNameCheck = ReadNTStringAt(MonoClassCheck + 0x2C);
+			Console.WriteLine($"Found VTable for class {ClassNameCheck} at {MonoVTableAddress:X8}");
 			//Int32 namespaceAddress;
 
 
