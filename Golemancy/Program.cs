@@ -20,18 +20,11 @@ namespace Golemancy {
 			Console.WriteLine($"Initializing Golemancy v{METADATA.Version} for Cultist Simulator, build {METADATA.BuildID}");
 
 			Process process = Process.GetProcessesByName("cultistsimulator").FirstOrDefault();
-            Console.WriteLine("process: " + process);
-
-            IntPtr processHandle = process.Handle;
-            Console.WriteLine("Process Handle: " + processHandle);
+            Console.WriteLine($"Linked to \"{process.ProcessName}\"");
 
             CultistSimulatorController CSC = new CultistSimulatorController(process);
 
-            Console.ReadLine();
-
             Int32 TabletopManager = CSC.FindTabletopManager();
-
-            Console.ReadLine();
 
             Console.WriteLine($"Found TabletopManager at {TabletopManager:X8}");
                 Int32 tttc = CSC.Read<Int32>(TabletopManager + 0x10);
@@ -51,7 +44,6 @@ namespace Golemancy {
                                         String elementLabel = CSC.ReadUnicodeStringAt(element + 0x1C);
                                     Int32 quantity = CSC.Read<Int32>(elementi + 0xE4);
                                     Console.WriteLine($"- {quantity}x \"{elementLabel}\" ({elementID})");
-                                    if (elementID == "funds") Console.WriteLine($"{elementi + 0xE4:X8}");
                                 }
                             }
                         Int32 smc = CSC.Read<Int32>(esm + 0x10);
