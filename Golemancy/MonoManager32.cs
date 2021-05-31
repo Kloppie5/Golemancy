@@ -85,7 +85,6 @@ namespace Golemancy {
 
 				return null;
 			}
-
 			public List<String> EnumTYPEDEFMetaTableNamesInImage ( Int32 image ) {
 				List<String> entries = new List<String>();
 
@@ -117,7 +116,91 @@ namespace Golemancy {
 
 				return entries;
 			}
+			
+			public Int32? FindVTableOfClassInClassCache ( Int32 image, String name ) {
+				Int32 class_cache_size = Read<Int32>(image + 0x360);
+				Int32 class_cache_table = Read<Int32>(image + 0x368);
+				for ( Int32 i = 0 ; i < class_cache_size ; ++i ) {
+					Int32 pointer = Read<Int32>(class_cache_table + i * 4);
+					if ( pointer == 0 )
+						continue;
+
+					Int32 klass = Read<Int32>(pointer);
+					String classname = ReadUTF8StringAt(klass + 0x2C);
+
+					if ( !classname.Equals(name) )
+						continue;
+
+					Int32 MonoClassRuntimeInfo = Read<Int32>(klass + 0x84);
+					Int32 MonoVTable = Read<Int32>(MonoClassRuntimeInfo + 0x04);
+					return MonoVTable;
+					// pointer = Read<Int32>(pointer + 0xA8);
+				}
+				return null;
+			}
+			public List<Int32> EnumImageClassCache ( Int32 image ) {
+				List<Int32> entries = new List<Int32>();
+
+				Int32 class_cache_size = Read<Int32>(image + 0x360);
+				Int32 class_cache_table = Read<Int32>(image + 0x368);
+				for ( Int32 i = 0 ; i < class_cache_size ; ++i ) {
+					Int32 pointer = Read<Int32>(class_cache_table + i * 4);
+					if ( pointer != 0 ) {
+						Int32 klass = Read<Int32>(pointer);
+						String name = ReadUTF8StringAt(klass + 0x2C);
+						String name_space = ReadUTF8StringAt(klass + 0x30);
+						Int32 type_token = Read<Int32>(klass + 0x34);
+						Int32 MonoClassFieldArray = Read<Int32>(klass + 0x60);
+						Int32 MonoMethodArray = Read<Int32>(klass + 0x64);
+						Int32 MonoClassRuntimeInfo = Read<Int32>(klass + 0x84);
+						Int32 MonoVTable = Read<Int32>(MonoClassRuntimeInfo + 0x04);
+						Console.WriteLine($"Found class {type_token:X8}:\"{name_space}.{name}\" ({klass:X8}) with Vtable at {MonoVTable:X8}");
+						entries.Add(klass);
+						// pointer = Read<Int32>(pointer + 0xA8);
+					}
+				}
+				Console.WriteLine($"Found {entries.Count} entries");
+				return entries;
+			}
+			public Int32? GetClassFromImageCache ( Int32 image, Int32 type_token ) {
+				Int32 class_cache_size = Read<Int32>(image + 0x360);
+				Int32 class_cache_table = Read<Int32>(image + 0x368);
+
+				Int32 pointer = Read<Int32>(class_cache_table + (type_token % class_cache_size) * 4);
+				if ( pointer != 0 ) {
+					Int32 klass = Read<Int32>(pointer);
+					if ( Read<Int32>(klass + 0x34) == type_token )
+						return klass;
+					// pointer = Read<Int32>(pointer + 0xA8);
+				}
+
+				return null;
+			}
 		#endregion
+
+		public List<Int32> FindInstances( Int32 vtable ) {
+			return FindBytePattern(0, 0x23000000, new Byte?[] {
+				(Byte) vtable,
+				(Byte) (vtable >> 8),
+				(Byte) (vtable >> 16),
+				(Byte) (vtable >> 24),
+				0x00,
+				0x00,
+				0x00,
+				0x00
+			});
+		}
+
+		public Int32? FindVTable ( Int32 domain, Int32 klass ) {
+			Byte?[] pattern = new Byte?[] {
+				(Byte) klass, (Byte) (klass >> 8), (Byte) (klass >> 16), (Byte) (klass >> 24),
+				null, null, null, null, // GC description
+				(Byte) domain, (Byte) (domain >> 8), (Byte) (domain >> 16), (Byte) (domain >> 24)
+			};
+			List<Int32> matches = FindBytePattern(0, 0x23000000, pattern);
+			Console.WriteLine($"Found {matches.Count} matches");
+			return matches.FirstOrDefault();
+		}
 
 		/**
 			* Mono changes String objects following the MonoObject design;

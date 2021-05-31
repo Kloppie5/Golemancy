@@ -24,55 +24,17 @@ namespace Golemancy {
 
             CultistSimulatorController CSC = new CultistSimulatorController(process);
 
-            Int32 TabletopManager = CSC.FindTabletopManager();
+            Int32 UnityRootDomain = CSC.GetUnityRootDomain();
+			Console.WriteLine($"Found Domain at {UnityRootDomain:X8}");
+			Int32 assembly = CSC.FindAssemblyInDomain(UnityRootDomain, "Assembly-CSharp").Value;
+			Console.WriteLine($"Found Assembly at {assembly:X8}");
+			Int32 image = CSC.Read<Int32>(assembly + 0x44);
+			Console.WriteLine($"Found Image at {image:X8}");
 
-            Console.WriteLine($"Found TabletopManager at {TabletopManager:X8}");
-                Int32 tttc = CSC.Read<Int32>(TabletopManager + 0x10);
-                    Int32 esm = CSC.Read<Int32>(tttc + 0xC);
-                        Int32 tc = CSC.Read<Int32>(esm + 0x8);
-                        Int32 stacks = CSC.Read<Int32>(esm + 0xC);
-                            {
-                                Int32 array = CSC.Read<Int32>(stacks + 0x8);
-                                Int32 count = CSC.Read<Int32>(stacks + 0xC);
-                                Int32 capacity = CSC.Read<Int32>(stacks + 0x10);
+            CSC.EnumImageClassCache(image);
 
-                                for ( Int32 i = 0 ; i < count ; ++i ) {
-                                    Int32 elementi = CSC.Read<Int32>(array + 0x10 + i * 0x4);
-
-                                    Int32 element = CSC.Read<Int32>(elementi + 0xB0);
-                                        String elementID = CSC.ReadUnicodeStringAt(element + 0x8);
-                                        String elementLabel = CSC.ReadUnicodeStringAt(element + 0x1C);
-                                    Int32 quantity = CSC.Read<Int32>(elementi + 0xE4);
-                                    Console.WriteLine($"- {quantity}x \"{elementLabel}\" ({elementID})");
-                                }
-                            }
-                        Int32 smc = CSC.Read<Int32>(esm + 0x10);
-                    Int32 c = CSC.Read<Int32>(tttc + 0x1C);
-
-                Int32 adw = CSC.Read<Int32>(TabletopManager + 0x1C);
-                Int32 tdw = CSC.Read<Int32>(TabletopManager + 0x20);
-                Int32 mc = CSC.Read<Int32>(TabletopManager + 0x28);
-                Int32 mtc = CSC.Read<Int32>(TabletopManager + 0x2C);
-                Int32 sb = CSC.Read<Int32>(TabletopManager + 0x4C);
-                Single hkt = CSC.Read<Single>(TabletopManager + 0x7C);
-
-            Int32 sc = CSC.FindSituationsCatalogue();
-            Console.WriteLine($"Found SituationsCatalogue at {sc:X8}");
-                Int32 SituationControllerList = CSC.Read<Int32>(sc + 0x8);
-                    {
-                        Int32 array = CSC.Read<Int32>(SituationControllerList + 0x8);
-                        Int32 count = CSC.Read<Int32>(SituationControllerList + 0xC);
-                        Int32 capacity = CSC.Read<Int32>(SituationControllerList + 0x10);
-
-                        for ( Int32 i = 0 ; i < count ; ++i ) {
-                            Int32 situationController = CSC.Read<Int32>(array + 0x10 + i * 0x4);
-                                Int32 situationToken = CSC.Read<Int32>(situationController + 0x8);
-                                    Int32 verb = CSC.Read<Int32>(situationToken + 0xB8);
-                                        String verbID = CSC.ReadUnicodeStringAt(verb + 0x8);
-                                        String verbLabel = CSC.ReadUnicodeStringAt(verb + 0x1C);
-                                        Console.WriteLine($"- \"{verbLabel}\" ({verbID})");
-                        }
-                    }
+            CSC.DBPTabletopManager(UnityRootDomain, image);
+            CSC.DBPSituationsCatalogue(UnityRootDomain, image);
 
             // work legacybytjob => legacybytjobmatured, 3 funds, explore {some action => locationauctionhouse, locationcabaret}
             // work legacybytjobmatured => [(legacybytjobmatured, 3 funds), (2 funds, legacyeventbad)]
