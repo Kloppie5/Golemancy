@@ -4,37 +4,45 @@ using System.Text;
 
 namespace Golemancy;
 
-class ProcessManager {
-    
+class ProcessManager
+{
+    [DllImport("kernel32.dll")]
+    static extern long CreateRemoteThread (long hProcess, long lpThreadAttributes, uint dwStackSize, long lpStartAddress, long lpParameter, uint dwCreationFlags, long lpThreadId );
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern long OpenProcess( uint dwDesiredAccess, bool bInheritHandle, int dwProcessId );
     [DllImport("kernel32.dll")]
-    public static extern bool ReadProcessMemory( nint hProcess, nint lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead );
+    public static extern bool ReadProcessMemory( long hProcess, long lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead );
+    [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+    public static extern long VirtualAllocEx ( long hProcess, long lpAddress, long dwSize, uint  flAllocationType, uint flProtect );
+    [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+    static extern bool VirtualFreeEx (long hProcess, long lpAddress, long dwSize, uint dwFreeType );
     [DllImport("kernel32.dll")]
-    public static extern bool WriteProcessMemory( nint hProcess, nint lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesWritten );
-    
+    public static extern bool WriteProcessMemory( long hProcess, long lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesWritten );
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern uint WaitForSingleObject (long hHandle, uint dwMilliseconds );
+
     [DllImport("psapi.dll")]
-    public static extern bool EnumProcessModulesEx ( nint hProcess, [Out] nint[] lphModule, int cb, ref int lpcbNeeded, int dwFilterFlag );
+    public static extern bool EnumProcessModulesEx ( long hProcess, [Out] long[] lphModule, int cb, ref int lpcbNeeded, int dwFilterFlag );
     [DllImport("psapi.dll")]
-    public static extern int GetModuleFileNameEx( nint hProcess, nint hModule, [Out] StringBuilder lpBaseName, int nSize );
+    public static extern int GetModuleFileNameEx( long hProcess, long hModule, [Out] StringBuilder lpBaseName, int nSize );
 
     private const uint PROCESS_ALL_ACCESS = 0x001F0FFF;
 
     Process? _process;
-    nint _hProcess;
-    Dictionary<nint, Dictionary<string, nint>> _exportedFunctions = [];
+    long _hProcess;
+    Dictionary<long, Dictionary<string, long>> _exportedFunctions = [];
 
     public ProcessManager( string name )
     {
         _process = Process.GetProcessesByName(name).FirstOrDefault();
         if (_process is null)
             throw new ArgumentException($"Could not find process '{name}'");
-        _hProcess = (nint)OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
+        _hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
     }
 
-    public nint GetModule64ByNameOrThrow( string name )
+    public long GetModule64ByNameOrThrow( string name )
     {
-        nint[] hModules = new nint[1024];
+        long[] hModules = new long[1024];
         int lpcbNeeded = 0;
         EnumProcessModulesEx(_hProcess, hModules, 1024, ref lpcbNeeded, 0x3);
         for ( int i = 0; i < lpcbNeeded / IntPtr.Size; i++ )
@@ -47,7 +55,7 @@ class ProcessManager {
         throw new ArgumentException($"Could not find module '{name}'");
     }
 
-    public Dictionary<string, nint> GetExportedFunctions( nint module )
+    public Dictionary<string, long> GetExportedFunctions( long module )
     {
         var dosHeader = Read<IMAGE_DOS_HEADER>(module)
             ?? throw new ArgumentException($"Could not find dos header in module '{module}'");
@@ -56,9 +64,10 @@ class ProcessManager {
         var exportTable = Read<IMAGE_EXPORT_DIRECTORY_TABLE>(module + optionalHeader32.ExportTable.VirtualAddress)
             ?? throw new ArgumentException($"Could not find export table in module '{module}'");
         
-        Dictionary<string, nint> exportedFunctions = [];
+        Dictionary<string, long> exportedFunctions = [];
 
-        for (int i = 0; i < exportTable.AddressTableEntries; ++i ) {
+        for (int i = 0; i < exportTable.AddressTableEntries; ++i )
+        {
             int FunctionNameOffset = ReadUnsafe<int>(module + exportTable.NamePointerRva + i * 4);
             string FunctionName = ReadUnsafeUTF8String(module + FunctionNameOffset);
             int FunctionOffset = ReadUnsafe<int>(module + exportTable.ExportAddressTableRva + i * 4);
@@ -67,16 +76,33 @@ class ProcessManager {
 
         return exportedFunctions;
     }
-    public nint GetExportedFunctionByNameOrThrow( nint module, string name )
+    public long GetExportedFunctionByNameOrThrow( long module, string name )
     {
         if (!_exportedFunctions.ContainsKey(module))
             _exportedFunctions[module] = GetExportedFunctions(module);
         return _exportedFunctions[module][name];
     }
 
+    public T InvokeFunction<T> ( long address ) where T : struct
+    {
+        long dataspace = VirtualAllocEx(_hProcess, 0, 0x1000, 0x3000, 0x40);
+
+        byte[] code = AssemblyBuilder.Start()
+            .MOVi32r(0, (int)address)
+            .CALLr(0)
+            .MOVr0m32((int)dataspace)
+            .RET()
+            .Finalize();
+
+        long codespace = VirtualAllocEx(_hProcess, 0, code.Length, 0x3000, 0x40);
+        WriteProcessMemory(_hProcess, codespace, code, code.Length, out int _);
+        long thread = CreateRemoteThread(_hProcess, 0, 0, codespace, 0, 0, 0);
+        WaitForSingleObject(thread, 0xFFFFFFFF);
+        VirtualFreeEx(_hProcess, codespace, code.Length, 0x8000);
+        return ReadUnsafe<T>(dataspace);
+    }
+
     public T? Read<T>( long address ) where T : struct
-        => Read<T>((nint)address);
-    public T? Read<T>( nint address ) where T : struct
     {
         int size = Marshal.SizeOf(typeof(T));
         byte[] read = new byte[size];
@@ -97,9 +123,8 @@ class ProcessManager {
 
         return result;
     }
+    
     public T ReadUnsafe<T>( long address ) where T : struct
-        => ReadUnsafe<T>((nint)address);
-    public T ReadUnsafe<T>( nint address ) where T : struct
     {
         int size = Marshal.SizeOf(typeof(T));
         byte[] read = new byte[size];
@@ -123,7 +148,7 @@ class ProcessManager {
 
         return result.Value;
     }
-    public string ReadUnsafeUTF8String( nint address )
+    public string ReadUnsafeUTF8String( long address )
     {
         List<byte> bytes = [];
 
