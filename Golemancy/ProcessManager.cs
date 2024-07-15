@@ -4,7 +4,7 @@ using System.Text;
 
 namespace Golemancy;
 
-class ProcessManager
+public partial class ProcessManager
 {
     [DllImport("kernel32.dll")]
     static extern long CreateRemoteThread (long hProcess, long lpThreadAttributes, uint dwStackSize, long lpStartAddress, long lpParameter, uint dwCreationFlags, long lpThreadId );
@@ -32,13 +32,36 @@ class ProcessManager
     long _hProcess;
     Dictionary<long, Dictionary<string, long>> _exportedFunctions = [];
 
-    public ProcessManager( string name )
+    long _monoModule;
+    int _monoRootDomain;
+
+    public ProcessManager( )
     {
-        _process = Process.GetProcessesByName(name).FirstOrDefault();
+        string processName = "cultistsimulator";
+        _process = Process.GetProcessesByName(processName).FirstOrDefault();
         if (_process is null)
-            throw new ArgumentException($"Could not find process '{name}'");
+            throw new ArgumentException($"Could not find process '{processName}'");
         _hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, _process.Id);
+
+        _monoModule = GetModule64ByNameOrThrow("mono-2.0-bdwgc.dll");
+        long getRootDomain = GetExportedFunctionByNameOrThrow(_monoModule, "mono_get_root_domain");
+        _monoRootDomain = CallFunction<int>(getRootDomain);
+
+        var mainAssembly = MonoDomainGetMonoAssemblyByName(_monoRootDomain, "SecretHistories.Main");
+        var mainImage = MonoAssemblyGetMonoImage(mainAssembly);
+        int watchman = MonoImageGetMonoClassByName(mainImage, "SecretHistories.UI", "Watchman");
+        int vtable = MonoClassGetMonoVTable(_monoRootDomain, watchman);
+        int staticFieldData = VTableGetStaticFieldData(vtable);
+        int registered = ReadUnsafe<int>(staticFieldData);
+        
+        var watchmanDict = ReadDictionaryTypeObject(registered);
+        foreach (var (item, loc) in watchmanDict)
+        {
+            Console.WriteLine($"{item}: {loc}");
+        }
     }
+
+#region PE
 
     public long GetModule64ByNameOrThrow( string name )
     {
@@ -83,7 +106,10 @@ class ProcessManager
         return _exportedFunctions[module][name];
     }
 
-    public T InvokeFunction<T> ( long address ) where T : struct
+#endregion
+#region Mono
+
+    public T CallFunction<T> ( long address ) where T : struct
     {
         long dataspace = VirtualAllocEx(_hProcess, 0, 0x1000, 0x3000, 0x40);
 
@@ -100,6 +126,83 @@ class ProcessManager
         WaitForSingleObject(thread, 0xFFFFFFFF);
         VirtualFreeEx(_hProcess, codespace, code.Length, 0x8000);
         return ReadUnsafe<T>(dataspace);
+    }
+    public T CallMonoFunctionUnsafe<T> (string functionName, params object[] args ) where T : struct
+        => CallMonoFunction<T>(functionName, args).Value;
+    public T? CallMonoFunction<T> (string functionName, params object[] args ) where T : struct
+    {
+        int functionAddress = (int)GetExportedFunctionByNameOrThrow(_monoModule, functionName);
+        int mono_thread_attach = (int)GetExportedFunctionByNameOrThrow(_monoModule, "mono_thread_attach");
+
+        AssemblyBuilder assembler = AssemblyBuilder.Start();
+
+        if ( functionName != "mono_get_root_domain" ) {
+            assembler
+                .PUSHi32(_monoRootDomain)
+                .MOVi32r(0, mono_thread_attach)
+                .CALLr(0)
+                .ADDi8r(4, 4);
+        }
+
+
+        assembler.MOVi32r(0, functionAddress);
+        for ( int i = args.Length - 1; i >= 0; --i )
+        {
+            switch (args[i])
+            {
+                case int v:
+                    assembler.PUSHi32(v);
+                    break;
+                case string v1:
+                    int stringAddress = (int)VirtualAllocEx(_hProcess, 0, 0x1000, 0x3000, 0x40);
+                    WriteProcessMemory(_hProcess, stringAddress, Encoding.UTF8.GetBytes(v1), v1.Length, out int _);
+                    assembler.PUSHi32(stringAddress);
+                    break;
+                default:
+                    throw new Exception($"Unsupported argument type {args[i].GetType()}");
+            }
+        }
+        assembler.CALLr(0);
+
+        int dataSpace = (int)VirtualAllocEx(_hProcess, 0, 0x1000, 0x3000, 0x40);
+        assembler.MOVr0m32(dataSpace);
+        assembler.ADDi8r(4, (sbyte) (4 * args.Length));
+
+
+        assembler.RET();
+        byte[] code = assembler.Finalize();
+        
+        long codespace = VirtualAllocEx(_hProcess, 0, code.Length, 0x3000, 0x40);
+        WriteProcessMemory(_hProcess, codespace, code, code.Length, out int _);
+        long thread = CreateRemoteThread(_hProcess, 0, 0, codespace, 0, 0, 0);
+        WaitForSingleObject(thread, 0xFFFFFFFF);
+        VirtualFreeEx(_hProcess, codespace, code.Length, 0x8000);
+
+        return Read<T>(dataSpace);
+    }
+
+#endregion
+#region Memory Management
+
+    public Dictionary<string, int> ReadDictionaryTypeObject (int pointer ) {
+        Dictionary<string, int> dict = [];
+        int entries = ReadUnsafe<int>(pointer + 0xC);
+        int count = ReadUnsafe<int>(entries + 0xC);
+
+        for (long i = 0; i < count; ++i ) {
+            int hashcode = ReadUnsafe<int>(entries + 0x10 + i * 0x10);
+            int next = ReadUnsafe<int>(entries + 0x14 + i * 0x10);
+            int key = ReadUnsafe<int>(entries + 0x18 + i * 0x10);
+            int value = ReadUnsafe<int>(entries + 0x1C + i * 0x10);
+            if ( value == 0 )
+                continue;
+            int keyType = ReadUnsafe<int>(key + 0x8);
+            int keyClass = ReadUnsafe<int>(keyType);
+            string keyClassName = ReadUnsafeUTF8String(ReadUnsafe<int>(keyClass + 0x2C));
+            dict.Add(keyClassName, value);
+        }
+
+        return dict;
     }
 
     public T? Read<T>( long address ) where T : struct
@@ -158,4 +261,6 @@ class ProcessManager
 
         return Encoding.UTF8.GetString(bytes.ToArray());
     }
+
+#endregion
 }
