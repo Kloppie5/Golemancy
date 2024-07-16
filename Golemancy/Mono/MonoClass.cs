@@ -29,7 +29,7 @@ public struct MonoClass32 {
     public int /* char* */ name;
 
     [FieldOffset(0x30)]
-    public uint /* char* */ name_space;
+    public int /* char* */ name_space;
 
     [FieldOffset(0x34)]
     public uint type_token;
@@ -49,7 +49,19 @@ public struct MonoClass32 {
 
 public partial class ProcessManager
 {
-    public int MonoClassGetMonoVTable ( int monoDomain, int @class )
+    public string MonoClassGetName( int @class )
+    {
+        int address = ReadUnsafe<int>(@class + 0x2C);
+        return ReadUnsafeUTF8String(address);
+    }
+
+    public string MonoClassGetNamespace( int @class )
+    {
+        int address = ReadUnsafe<int>(@class + 0x30);
+        return ReadUnsafeUTF8String(address);
+    }
+
+    public int MonoClassGetMonoVTable( int monoDomain, int @class )
     {
         return CallMonoFunctionUnsafe<int>("mono_class_vtable", monoDomain, @class);
     }

@@ -8,6 +8,6 @@ class Program {
     {
         Console.WriteLine("Knock knock Mansus");
 
-        var pm = new ProcessManager();
+        var pm = new GameManager();
     }
 }

@@ -32,8 +32,8 @@ public partial class ProcessManager
     long _hProcess;
     Dictionary<long, Dictionary<string, long>> _exportedFunctions = [];
 
-    long _monoModule;
-    int _monoRootDomain;
+    protected long _monoModule;
+    protected int _monoRootDomain;
 
     public ProcessManager( )
     {
@@ -46,19 +46,6 @@ public partial class ProcessManager
         _monoModule = GetModule64ByNameOrThrow("mono-2.0-bdwgc.dll");
         long getRootDomain = GetExportedFunctionByNameOrThrow(_monoModule, "mono_get_root_domain");
         _monoRootDomain = CallFunction<int>(getRootDomain);
-
-        var mainAssembly = MonoDomainGetMonoAssemblyByName(_monoRootDomain, "SecretHistories.Main");
-        var mainImage = MonoAssemblyGetMonoImage(mainAssembly);
-        int watchman = MonoImageGetMonoClassByName(mainImage, "SecretHistories.UI", "Watchman");
-        int vtable = MonoClassGetMonoVTable(_monoRootDomain, watchman);
-        int staticFieldData = VTableGetStaticFieldData(vtable);
-        int registered = ReadUnsafe<int>(staticFieldData);
-        
-        var watchmanDict = ReadDictionaryTypeObject(registered);
-        foreach (var (item, loc) in watchmanDict)
-        {
-            Console.WriteLine($"{item}: {loc}");
-        }
     }
 
 #region PE
