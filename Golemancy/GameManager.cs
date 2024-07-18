@@ -47,6 +47,10 @@ public class GameManager : ProcessManager
         "StorefrontServicesProvider", // Steam interaction
     ];
 
+    Dictionary<string, int> _watchmanDict;
+    Dictionary<string, int> _situations = [];
+    Dictionary<string, int> _cards = [];
+
     public GameManager()
     {
         _secretHistoriesMainAssembly = MonoDomainGetMonoAssemblyByName(_monoRootDomain, "SecretHistories.Main");
@@ -56,21 +60,10 @@ public class GameManager : ProcessManager
         int staticFieldData = VTableGetStaticFieldData(vtable);
         int registered = ReadUnsafe<int>(staticFieldData);
         
-        var watchmanDict = ReadDictionaryTypeObject(registered);
+        _watchmanDict = ReadDictionaryTypeObject(registered);
 
-        foreach (var (item, loc) in watchmanDict)
-        {
-            if (!singletons.Contains(item))
-                Console.WriteLine($"{item}': {loc}");
-            int somevtable = ReadUnsafe<int>(loc);
-            int someclass = ReadUnsafe<int>(somevtable);
-            Console.WriteLine($"{item}: {MonoClassGetNamespace(someclass)}.{MonoClassGetName(someclass)}");
-        }
+        UpdateTableTop();
         /*
-        Concursum: 452329072
-            popup manager 1
-Watchman.Get<Concursum>().ShowNotification(new NotificationArgs("THIS WAS A FREE COPY FOR BETA TESTING ONLY:( ", "BETA HAS EXPIRED :( CAT IS SAD :( PURCHASING & UPDATING THE GAME WILL MAKE THIS MESSAGE GO AWAY :) "));
-
 foreach (Situation registeredSituation in Watchman.Get<HornedAxe>().GetRegisteredSituations())
 		{
 			if (registeredSituation.IsOpen && registeredSituation.StateIdentifier == StateEnum.Unstarted)
@@ -84,63 +77,6 @@ foreach (Situation registeredSituation in Watchman.Get<HornedAxe>().GetRegistere
 
                 Character character = Watchman.Get<Stable>().Protag();
 
-        HornedAxe: 452462104
-        SecretHistory: 452329408
-        MetaInfo: 452093920
-        StorefrontServicesProvider: 452065280
-        Config: 452124152
-        SituationUIStyle: 153111104
-        StageHand: 452461584
-        Limbo: 153104032
-        IDice: 452098672
-        AchievementsChronicler: 452063968
-        ModManager: 452164584
-        Compendium: 453095968
-        LanguageManager: 452109688
-        PrefabFactory: 630665360
-        Stable: 452478920
-        ScreenResolutionAdapter: 452307136
-        HintPanel: 452064192
-        LocalNexus: 453148920
-        BackgroundMusic: 597120992
-        NullManifestation: 597360976
-
-        HornedAxe: 452462104
-SecretHistory: 452329408
-MetaInfo: 452093920
-StorefrontServicesProvider: 452065280
-Config: 452124152
-Concursum: 452329072
-SituationUIStyle: 153111104
-StageHand: 452461584
-Limbo: 153104032
-IDice: 452098672
-AchievementsChronicler: 452063968
-ModManager: 452164584
-Compendium: 453095968
-LanguageManager: 452109688
-PrefabFactory: 630665360
-Stable: 452478920
-ScreenResolutionAdapter: 452307136
-HintPanel: 452064192
-LocalNexus: 453500640
-BackgroundMusic: 598032384
-NullManifestation: 597360976
-Notifier: 609001952
-CamOperator: 554467096
-CameraDragRect: 600619648
-AbstractBackground: 630684064
-Heart: 630603680
-Meniscate: 553714752
-TabletopImageBurner: 584457944
-IChronicler: 603513600
-Xamanek: 584454624
-StatusBar: 630683360
-TabletopFadeOverlay: 597347760
-Autosaver: 600619592
-DealersTable: 600619536
-GameGateway: 593822752
-Numa: 587593864
 
         Watchman.Get<Compendium>().GetSingleEntity<Dictum>()
 
@@ -229,6 +165,66 @@ public void DoHeartbeats(int beatsToDo)
 	}
     
         */
+    }
+
+    public void UpdateTableTop ( ) {
+        int hornedaxe = _watchmanDict["HornedAxe"];
+        Console.WriteLine($"HornedAxe : {hornedaxe}");
+        // HashSet
+        int registeredSpheres = ReadUnsafe<int>(hornedaxe + 0x18);
+        int slotArray = ReadUnsafe<int>(registeredSpheres + 0xC);
+        int sphereEntries = ReadUnsafe<int>(slotArray + 0xC);
+        Console.WriteLine($"> Spheres : {sphereEntries}@{registeredSpheres}");
+        for ( int sphereEntriesIt = 0 ; sphereEntriesIt < sphereEntries ; ++sphereEntriesIt ) {
+            int sphere = ReadUnsafe<int>(slotArray + 0x18 + sphereEntriesIt * 0xC);
+            if ( sphere == 0 )
+                continue;
+
+            int sphereVTable = ReadUnsafe<int>(sphere);
+            int sphereClass = ReadUnsafe<int>(sphereVTable);
+            string sphereClassName = MonoClassGetName(sphereClass);
+
+            if ( sphereClassName == "TabletopSphere" ) {
+                // List
+                int tokenList = ReadUnsafe<int>(sphere + 0x34);
+                int array = ReadUnsafe<int>(tokenList + 0x8);
+                int tokenEntries = ReadUnsafe<int>(array + 0xC);
+                Console.WriteLine($"> Tokens : {tokenEntries}@{tokenList}");
+                for ( int tokenEntriesIt = 0 ; tokenEntriesIt < tokenEntries ; ++tokenEntriesIt ) {
+                    int token = ReadUnsafe<int>(array + 0x10 + tokenEntriesIt * 0x4);
+                    if ( token == 0 )
+                        continue;
+
+                    int payload = ReadUnsafe<int>(token + 0x24);
+                    int payloadVTable = ReadUnsafe<int>(payload);
+                    int payloadClass = ReadUnsafe<int>(payloadVTable);
+                    string payloadClassName = MonoClassGetName(payloadClass);
+
+                    if ( payloadClassName == "ElementStack" ) {
+                        int id = ReadUnsafe<int>(payload + 0x10);
+                        string idString = ReadUnsafeMonoWideString(id);
+                        int element = ReadUnsafe<int>(payload + 0x14);
+                        int label = ReadUnsafe<int>(element + 0x1C);
+                        string labelString = ReadUnsafeMonoWideString(label);
+                        int description = ReadUnsafe<int>(element + 0x20);
+                        string descriptionString = ReadUnsafeMonoWideString(description);
+                        int quantity = ReadUnsafe<int>(payload + 0x40);
+                        Console.WriteLine($"Stack({idString}): {quantity}x {labelString}");
+                        _cards.Add(idString, payload);
+                    }
+                    if ( payloadClassName == "Situation" ) {
+                        int verb = ReadUnsafe<int>(payload + 0x20);
+                        int label = ReadUnsafe<int>(verb + 0x1C);
+                        string labelString = ReadUnsafeMonoWideString(label);
+                        int id = ReadUnsafe<int>(payload + 0x24);
+                        string idString = ReadUnsafeMonoWideString(id);
+                        Console.WriteLine($"Situation({idString}): {labelString}");
+                        _situations.Add(idString, payload);
+                    }
+                }
+                break;
+            }
+        }
     }
 
     /// <summary>

@@ -248,6 +248,15 @@ public partial class ProcessManager
 
         return Encoding.UTF8.GetString(bytes.ToArray());
     }
+    public string ReadUnsafeMonoWideString ( long address) {
+        List<byte> bytes = [];
+
+        int length = ReadUnsafe<int>(address + 0x8);
+        for ( int i = 0; i < length; i++ )
+            bytes.Add(ReadUnsafe<byte>(address + 0xC + i*2));
+
+        return Encoding.UTF8.GetString(bytes.ToArray());
+    }
 
 #endregion
 }
