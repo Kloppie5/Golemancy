@@ -25,6 +25,7 @@ public class ProcessManager
         public uint Type;
     }
 
+    const uint MEM_COMMIT = 0x1000;
     const int PROCESS_VM_READ = 0x0010;
     const int PROCESS_QUERY_INFORMATION = 0x0400;
 
@@ -46,7 +47,7 @@ public class ProcessManager
         while (VirtualQueryEx(handle, addr, out mbi, (uint)Marshal.SizeOf<MEMORY_BASIC_INFORMATION>()) != 0)
         {
             long size = mbi.RegionSize.ToInt64();
-            if (mbi.State == 0x1000) // MEM_COMMIT
+            if (mbi.State == MEM_COMMIT)
             {
                 result.Add(new
                 {
