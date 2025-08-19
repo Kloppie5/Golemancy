@@ -11,6 +11,9 @@ public class ProcessManager
     static extern IntPtr OpenProcess(int dwDesiredAccess, bool bInheritHandle, int dwProcessId);
 
     [DllImport("kernel32.dll")]
+    static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead);
+
+    [DllImport("kernel32.dll")]
     static extern int VirtualQueryEx(IntPtr hProcess, IntPtr lpAddress, out MEMORY_BASIC_INFORMATION lpBuffer, uint dwLength);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -59,5 +62,13 @@ public class ProcessManager
             addr = (IntPtr)(mbi.BaseAddress.ToInt64() + size);
         }
         return result;
+    }
+
+    public byte[] ReadRegion(long addr, int len)
+    {
+        byte[] buffer = new byte[len];
+        ReadProcessMemory(handle, (IntPtr)addr, buffer, len, out int bytesRead);
+        if (bytesRead < len) Array.Resize(ref buffer, bytesRead);
+        return buffer;
     }
 }
