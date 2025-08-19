@@ -1,3 +1,0 @@
-It has been a while, so I remember some random details but the overall stuff has been lost to time, so lets try to actually keep notes this time.
-
-Cultist Simulator runs on Mono, so it is possible to traverse the Mono object stack and grab what we want. In this case, Cultist Simulator has a very nice singleton called Watchman that acts as a registry of globally available services that together basically contain everything we care about.
