@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -13,6 +14,12 @@ namespace MemoryObserver;
 public class Program
 {
     static ProcessManager _pm;
+
+    static long _commandCount = 0;
+    static Stopwatch _uptime = Stopwatch.StartNew();
+    static object _lock = new object();
+    
+    static ConcurrentDictionary<string, long> _commandTypes = new ConcurrentDictionary<string, long>();
 
     public static void Main(string[] args)
     {
