@@ -13,6 +13,21 @@ namespace MemoryObserver;
 
 public class Program
 {
+    static void Main(string[] args)
+    {
+        var pm = new ProcessManager("cultistsimulator"); // or whatever exe name
+        var gm = new GameManager(pm);
+        gm.InitMono();   // whatever your setup routine is to find domain/image
+
+        var builder = WebApplication.CreateBuilder(args);
+        var app = builder.Build();
+
+        var bridge = new MonoBridge(pm, gm.RootDomain);
+        bridge.MapEndpoints(app);
+
+        app.Run("http://localhost:5000");
+    }
+
     static ProcessManager _pm;
 
     static long _commandCount = 0;
