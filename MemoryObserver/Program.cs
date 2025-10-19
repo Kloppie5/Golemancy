@@ -1,6 +1,8 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Mono.Cecil;
+using Golemancy.Services;
 
 internal class Program
 {
@@ -9,30 +11,63 @@ internal class Program
         var builder = WebApplication.CreateBuilder(args);
         var app = builder.Build();
 
-        var mem = new MemoryService();
         var input = new InputService();
 
         app.MapGet("/status", () => Results.Ok(new { ok = true }));
+
         app.MapPost("/click", async (MouseActionRequest r) =>
         {
-            // r.screenX, r.screenY, r.button, r.delayMs
             input.Click(r.screenX, r.screenY, r.button, r.delayMs);
             return Results.Ok();
         });
+
         app.MapPost("/drag", async (DragRequest r) =>
         {
             input.Drag(r.fromX, r.fromY, r.toX, r.toY, r.durationMs);
             return Results.Ok();
         });
-        app.MapGet("/readPointer", (ulong baseAddr, int bytes) =>
+
+        app.MapGet("/mono/classes", (string assemblyPath) =>
         {
-            var data = mem.ReadBytes((nint)baseAddr, bytes);
-            return Results.Ok(Convert.ToBase64String(data));
+            if (!File.Exists(assemblyPath))
+                return Results.NotFound($"Assembly not found: {assemblyPath}");
+
+            var classes = MonoInspector.GetClasses(assemblyPath);
+            return Results.Ok(classes);
         });
-        app.MapGet("/scanPattern", (string patternHex) =>
+
+        app.MapGet("/mono/classinfo", (string assemblyPath, string className) =>
         {
-            var hits = mem.ScanPattern(patternHex);
-            return Results.Ok(hits);
+            if (!File.Exists(assemblyPath))
+                return Results.NotFound($"Assembly not found: {assemblyPath}");
+
+            var info = MonoInspector.GetClassInfo(assemblyPath, className);
+            return info is not null ? Results.Ok(info) : Results.NotFound($"Class not found: {className}");
+        });
+
+        app.MapGet("/mono/dump", (string assemblyPath) =>
+        {
+            if (!File.Exists(assemblyPath))
+                return Results.NotFound($"Assembly not found: {assemblyPath}");
+
+            var dump = MonoInspector.DumpAssembly(assemblyPath);
+            return Results.Ok(dump);
+        });
+
+        app.MapGet("/memory/read", (string processName, long address, int size) =>
+        {
+            try
+            {
+                var data = MemoryReader.ReadFromProcess(processName, new IntPtr(address), size);
+                if (data == null || data.Length == 0)
+                    return Results.NoContent();
+
+                return Results.File(data, "application/octet-stream");
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(ex.Message);
+            }
         });
 
         app.Run("http://localhost:5000");
