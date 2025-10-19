@@ -54,6 +54,15 @@ internal class Program
             return Results.Ok(dump);
         });
 
+        app.MapGet("/mono/layout", (string assemblyPath, string className) =>
+        {
+            if (!File.Exists(assemblyPath))
+                return Results.NotFound($"Assembly not found: {assemblyPath}");
+
+            var layout = MonoStructureMapper.BuildClassLayout(assemblyPath, className);
+            return layout is not null ? Results.Ok(layout) : Results.NotFound($"Class not found: {className}");
+        });
+
         app.MapGet("/memory/read", (string processName, long address, int size) =>
         {
             try
@@ -63,6 +72,24 @@ internal class Program
                     return Results.NoContent();
 
                 return Results.File(data, "application/octet-stream");
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(ex.Message);
+            }
+        });
+
+        app.MapGet("/memory/object", (string processName, string assemblyPath, string className, long baseAddress) =>
+        {
+            try
+            {
+                var snapshot = MonoStructureMapper.ReadObjectFromMemory(
+                    processName,
+                    assemblyPath,
+                    className,
+                    new IntPtr(baseAddress));
+
+                return Results.Ok(snapshot);
             }
             catch (Exception ex)
             {
